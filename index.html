@@ -770,6 +770,55 @@
       display: block;
     }
 
+    .qr-table-status {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-height: 48px;
+      padding: 9px 11px;
+      border: 1px solid rgba(82, 45, 24, 0.16);
+      border-radius: 14px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+    }
+
+    .qr-table-status.detected {
+      border-color: rgba(123, 47, 34, 0.30);
+      background: rgba(255, 248, 236, 0.94);
+    }
+
+    .qr-table-icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 12px;
+      color: #fffaf3;
+      background: linear-gradient(145deg, #7b2f22, #4b2418);
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .qr-table-status strong {
+      display: block;
+      color: var(--primary);
+      font-size: 14px;
+      line-height: 1.2;
+      font-weight: 950;
+    }
+
+    .qr-table-status small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+      font-weight: 750;
+    }
+
     .clear-cart {
       min-height: 40px;
       border-radius: 14px;
@@ -1543,41 +1592,13 @@
     <div class="cart-footer">
       <div class="order-fields">
         <div class="field-label">
-          <label for="tableNumber">Nº da mesa</label>
-          <div class="table-control">
-            <select class="order-input" id="tableNumber" aria-label="Número da mesa">
-              <option value="">Escolha a mesa</option>
-              <option value="Mesa 1">Mesa 1</option>
-              <option value="Mesa 2">Mesa 2</option>
-              <option value="Mesa 3">Mesa 3</option>
-              <option value="Mesa 4">Mesa 4</option>
-              <option value="Mesa 5">Mesa 5</option>
-              <option value="Mesa 6">Mesa 6</option>
-              <option value="Mesa 7">Mesa 7</option>
-              <option value="Mesa 8">Mesa 8</option>
-              <option value="Mesa 9">Mesa 9</option>
-              <option value="Mesa 10">Mesa 10</option>
-              <option value="Mesa 11">Mesa 11</option>
-              <option value="Mesa 12">Mesa 12</option>
-              <option value="Mesa 13">Mesa 13</option>
-              <option value="Mesa 14">Mesa 14</option>
-              <option value="Mesa 15">Mesa 15</option>
-              <option value="Mesa 16">Mesa 16</option>
-              <option value="Mesa 17">Mesa 17</option>
-              <option value="Mesa 18">Mesa 18</option>
-              <option value="Mesa 19">Mesa 19</option>
-              <option value="Mesa 20">Mesa 20</option>
-              <option value="Mesa 21">Mesa 21</option>
-              <option value="Mesa 22">Mesa 22</option>
-              <option value="Mesa 23">Mesa 23</option>
-              <option value="Mesa 24">Mesa 24</option>
-              <option value="Mesa 25">Mesa 25</option>
-              <option value="Mesa 26">Mesa 26</option>
-              <option value="Mesa 27">Mesa 27</option>
-              <option value="Mesa 28">Mesa 28</option>
-              <option value="Mesa 29">Mesa 29</option>
-              <option value="Mesa 30">Mesa 30</option>
-            </select>
+          <span>Mesa do pedido</span>
+          <div class="qr-table-status" id="tableStatus" aria-live="polite">
+            <span class="qr-table-icon" aria-hidden="true">▣</span>
+            <div>
+              <strong id="tableNumber">Mesa não identificada</strong>
+              <small id="tableHint">Escaneie o QR Code da mesa para abrir o cardápio.</small>
+            </div>
           </div>
         </div>
 
@@ -1664,7 +1685,8 @@ const categories = [
 
     const state = {
       selectedCategory: null,
-      cart: {}
+      cart: {},
+      tableNumber: ""
     };
 
     const elements = {
@@ -1685,7 +1707,9 @@ const categories = [
       cartTotal: document.getElementById("cartTotal"),
       finishOrder: document.getElementById("finishOrder"),
       clearCart: document.getElementById("clearCart"),
+      tableStatus: document.getElementById("tableStatus"),
       tableNumber: document.getElementById("tableNumber"),
+      tableHint: document.getElementById("tableHint"),
       orderObservation: document.getElementById("orderObservation")
     };
 
@@ -1804,11 +1828,54 @@ const categories = [
 
     function clearCart() {
       state.cart = {};
-      elements.tableNumber.value = "";
       elements.orderObservation.value = "";
       updateScreen();
     }
 
+
+    function normalizeMesaValue(value) {
+      if (!value) return "";
+      const cleanValue = String(value).trim();
+      const numberMatch = cleanValue.match(/\d+/);
+      if (!numberMatch) return "";
+      return `Mesa ${Number(numberMatch[0])}`;
+    }
+
+    function readMesaFromQRCode() {
+      const params = new URLSearchParams(window.location.search);
+      const mesaParam = params.get("mesa") || params.get("table") || params.get("mesaNumero");
+      const mesaFromUrl = normalizeMesaValue(mesaParam);
+
+      if (mesaFromUrl) {
+        state.tableNumber = mesaFromUrl;
+        try {
+          sessionStorage.setItem("pratoDaRocaMesa", mesaFromUrl);
+        } catch (error) {}
+      } else {
+        try {
+          state.tableNumber = sessionStorage.getItem("pratoDaRocaMesa") || "";
+        } catch (error) {
+          state.tableNumber = "";
+        }
+      }
+
+      updateMesaStatus();
+    }
+
+    function updateMesaStatus() {
+      const mesa = state.tableNumber;
+
+      if (mesa) {
+        elements.tableNumber.textContent = mesa;
+        elements.tableHint.textContent = "Mesa identificada automaticamente pelo QR Code.";
+        elements.tableStatus.classList.add("detected");
+        return;
+      }
+
+      elements.tableNumber.textContent = "Mesa não identificada";
+      elements.tableHint.textContent = "Escaneie o QR Code da mesa para abrir o cardápio.";
+      elements.tableStatus.classList.remove("detected");
+    }
 
     function getCartItems() {
       return Object.values(state.cart);
@@ -1877,7 +1944,7 @@ const categories = [
 
     function buildWhatsAppMessage() {
       const items = getCartItems();
-      const tableNumber = elements.tableNumber.value.trim();
+      const tableNumber = state.tableNumber;
       const observation = elements.orderObservation.value.trim();
       const lines = [
         "Olá! Gostaria de fazer um pedido.",
@@ -1903,9 +1970,8 @@ const categories = [
       const items = getCartItems();
       if (!items.length) return;
 
-      if (!elements.tableNumber.value.trim()) {
-        elements.tableNumber.focus();
-        alert("Escolha o número da mesa antes de enviar o pedido.");
+      if (!state.tableNumber) {
+        alert("Mesa não identificada. Escaneie o QR Code da mesa para abrir o cardápio.");
         return;
       }
 
@@ -1973,6 +2039,7 @@ const categories = [
     });
 
     renderCategories();
+    readMesaFromQRCode();
     renderCart();
   </script>
 </body>
